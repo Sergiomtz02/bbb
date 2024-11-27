@@ -46,39 +46,31 @@ if 'pestaña_actual' not in st.session_state:
 st.title("Allianz Patrimonial")
 
 # Crear pestañas
-tabs = st.tabs(["Información del Cliente", "Análisis de ETFs", "Resultados"])
+tabs = st.tabs(["Información del Cliente", "Análisis de ETFs", "Resultados", "Recomendaciones por Perfil"])
 
 # Información Personal del Cliente
 with tabs[0]:
-    # Verificar si los datos han sido guardados
     if 'datos_guardados' in st.session_state and st.session_state.datos_guardados:
         st.header("Datos Guardados Correctamente")
         if st.button("Editar Información"):
-            # Reiniciar los campos y la sesión
-            st.session_state.datos_guardados = False  # Para poder editar nuevamente
+            st.session_state.datos_guardados = False
             st.session_state.nombre_cliente = ""
             st.session_state.edad_cliente = 0
-            st.session_state.genero_cliente = "Masculino"  # Establecer un valor predeterminado
+            st.session_state.genero_cliente = "Masculino"
             st.session_state.direccion_cliente = ""
             st.session_state.pais_cliente = ""
             st.session_state.nacionalidad_cliente = ""
             st.session_state.ocupacion_cliente = ""
-            
     else:
         st.header("Información Personal del Cliente")
         nombre = st.text_input("Nombre:", value=st.session_state.get("nombre_cliente", ""))
         edad = st.number_input("Edad:", min_value=0, max_value=150, value=st.session_state.get("edad_cliente", 0))
-        
-        # Seleccionar género
         genero_opciones = ["Masculino", "Femenino", "Otro"]
         genero = st.selectbox("Género:", genero_opciones, index=genero_opciones.index(st.session_state.get("genero_cliente", "Masculino")) if st.session_state.get("genero_cliente") in genero_opciones else 0)
-
         direccion = st.text_input("Dirección:", value=st.session_state.get("direccion_cliente", ""))
         pais = st.text_input("País:", value=st.session_state.get("pais_cliente", ""))
         nacionalidad = st.text_input("Nacionalidad:", value=st.session_state.get("nacionalidad_cliente", ""))
         ocupacion = st.text_input("Ocupación:", value=st.session_state.get("ocupacion_cliente", ""))
-
-        # Guardar la información del cliente
         if st.button("Guardar Información"):
             st.session_state.nombre_cliente = nombre
             st.session_state.edad_cliente = edad
@@ -87,14 +79,10 @@ with tabs[0]:
             st.session_state.pais_cliente = pais
             st.session_state.nacionalidad_cliente = nacionalidad
             st.session_state.ocupacion_cliente = ocupacion
-            
-            # Marcar que los datos han sido guardados
             st.session_state.datos_guardados = True
-             
 
-# Análisis de ETFs (Pestaña 2)
+# Análisis de ETFs
 with tabs[1]:
-    # Mostrar mensaje de bienvenida con todos los datos del cliente si la información está guardada
     if st.session_state.nombre_cliente:
         st.write(f"**Bienvenido, {st.session_state.nombre_cliente}**")
         st.write(f"- **Edad**: {st.session_state.edad_cliente}")
@@ -105,26 +93,11 @@ with tabs[1]:
         st.write(f"- **Ocupación**: {st.session_state.ocupacion_cliente}")
 
     st.write("Analiza el rendimiento y riesgo de múltiples ETFs en periodos específicos.")
-    
     etfs_seleccionados = st.multiselect("Selecciona ETFs para comparar:", [etf['nombre'] for etf in ETFs_Data])
     etf_symbols = [etf['simbolo'] for etf in ETFs_Data if etf['nombre'] in etfs_seleccionados]
     periodo_seleccionado = st.selectbox("Selecciona el periodo de análisis:", list(periodos.keys()))
     periodo = periodos[periodo_seleccionado]
     monto_invertir = st.number_input("Monto a invertir por ETF (USD):", min_value=0.0, step=1.0)
-
-    # Nuevos campos para definir porcentajes optimista y pesimista
-    porcentaje_optimista = st.number_input("Porcentaje de Rendimiento Optimista (%):", value=20, step=1)
-    porcentaje_pesimista = st.number_input("Porcentaje de Rendimiento Pesimista (%):", value=20, step=1)
-
-    st.header("ETFS")
-    # Mostrar tabla con descripciones de los ETFs seleccionados
-    if etfs_seleccionados:
-        descripciones_df = pd.DataFrame({
-            "Nombre del ETF": [etf["nombre"] for etf in ETFs_Data if etf["nombre"] in etfs_seleccionados],
-            "Descripción": [etf["descripcion"] for etf in ETFs_Data if etf["nombre"] in etfs_seleccionados]
-        })
-        st.write("### Descripción de los ETFs Seleccionados")
-        st.table(descripciones_df)
 
 # Función para calcular rendimiento y riesgo
 def calcular_rendimiento_riesgo(etf_symbol, period):
@@ -160,88 +133,65 @@ with tabs[2]:
                 st.write("Resultados Comparativos de Rendimiento y Riesgo:")
                 st.table(resultados_df)
 
-                # Comparación de Escenarios
-                escenarios_dfs = []
-                texto_escenarios = ""  # Variable para almacenar el texto de comparación
+# Recomendaciones por perfil
+with tabs[3]:
+    st.header("Recomendaciones Basadas en Perfil de Inversión")
+    monto = st.number_input("Monto total a invertir (USD):", min_value=0.0, step=1.0)
+    perfil = st.selectbox("Selecciona tu perfil de inversión:", ["Seguro", "Óptimo", "Riesgo"])
 
-                for res in resultados:
-                    rendimiento_total = res["Rendimiento Total (%)"]
-                    retorno_inversion = (monto_invertir * rendimiento_total) / 100
+    if monto > 0 and perfil:
+        st.subheader(f"Recomendaciones para el perfil **{perfil}**")
 
-                    # Escenarios usando los porcentajes seleccionados por el usuario
-                    rendimiento_optimista = rendimiento_total + porcentaje_optimista
-                    rendimiento_neutro = rendimiento_total
-                    rendimiento_pesimista = rendimiento_total - porcentaje_pesimista
+        # Análisis de ETFs y asignación según perfil
+        etf_resultados = []
+        for etf in ETFs_Data:
+            resultado, _ = calcular_rendimiento_riesgo(etf['simbolo'], "1y")  # Análisis de 1 año por defecto
+            if resultado:
+                etf_resultados.append({
+                    "ETF": etf['nombre'],
+                    "Rendimiento": resultado["Rendimiento Total (%)"],
+                    "Riesgo": resultado["Riesgo (Desviación Estándar Anualizada) (%)"],
+                    "Simbolo": etf['simbolo'],
+                    "Descripcion": etf['descripcion']
+                })
 
-                    # Calcular retornos para cada escenario
-                    escenarios_dfs.append({
-                        "ETF": res["ETF"],
-                        "Optimista": round((monto_invertir * rendimiento_optimista) / 100, 2),
-                        "Neutro": round(retorno_inversion, 2),
-                        "Pesimista": round((monto_invertir * rendimiento_pesimista) / 100, 2)
-                    })
+        etf_resultados_df = pd.DataFrame(etf_resultados)
 
-                    # Agregar información al texto comparativo
-                    texto_escenarios += (
-                        f"\n**{res['ETF']}**\n"
-                        f"- Optimista: ${round((monto_invertir * rendimiento_optimista) / 100, 2)}\n"
-                        f"- Neutro: ${round(retorno_inversion, 2)}\n"
-                        f"- Pesimista: ${round((monto_invertir * rendimiento_pesimista) / 100, 2)}\n"
-                    )
+        # Selección según perfil
+        if perfil == "Seguro":
+            seleccion = etf_resultados_df[etf_resultados_df["Riesgo"] < 15].sort_values(by="Rendimiento", ascending=False)
+        elif perfil == "Óptimo":
+            seleccion = etf_resultados_df[(etf_resultados_df["Riesgo"] >= 15) & (etf_resultados_df["Riesgo"] <= 30)].sort_values(by="Rendimiento", ascending=False)
+        elif perfil == "Riesgo":
+            seleccion = etf_resultados_df[etf_resultados_df["Riesgo"] > 30].sort_values(by="Rendimiento", ascending=False)
 
-                # Crear DataFrame para los escenarios y mostrar tabla
-                escenarios_df = pd.DataFrame(escenarios_dfs)
-                st.write("### Tabla de Comparación de Retornos Estimados en Diferentes Escenarios")
-                st.table(escenarios_df)  # Mostramos la tabla de escenarios aquí
+        # Asignación del monto según perfil
+        seleccion["Porcentaje Asignado (%)"] = [50, 30, 20][:len(seleccion)]
+        seleccion["Monto Asignado (USD)"] = seleccion["Porcentaje Asignado (%)"] * monto / 100
 
-                # Mostrar texto comparativo de los escenarios en formato horizontal
-                st.write("### Comparación de Retornos Estimados por ETF y Escenario")
-                num_etfs = len(resultados)  # Total de ETFs
-                num_filas = (num_etfs + 2) // 3  # Calcula cuántas filas serán necesarias (3 ETFs por fila)
+        # Mostrar resultados
+        st.write("### Distribución de Inversión")
+        st.table(seleccion[["ETF", "Descripcion", "Porcentaje Asignado (%)", "Monto Asignado (USD)"]])
 
-                for i in range(num_filas):
-                    cols = st.columns(3)  # Crear 3 columnas por fila
-                    for j in range(3):
-                        etf_index = i * 3 + j  # Índice del ETF en la lista de resultados
-                        if etf_index < num_etfs:
-                            res = resultados[etf_index]
-                            cols[j].markdown(
-                                f"**{res['ETF']}**\n\n"
-                                f"- **Optimista**: ${round((monto_invertir * (res['Rendimiento Total (%)'] + porcentaje_optimista)) / 100, 2)}\n"
-                                f"- **Neutro**: ${round((monto_invertir * res['Rendimiento Total (%)']) / 100, 2)}\n"
-                                f"- **Pesimista**: ${round((monto_invertir * (res['Rendimiento Total (%)'] - porcentaje_pesimista)) / 100, 2)}"
-                            )
+        # Gráficos para visualizar la distribución de inversión
+        st.write("### Visualización de Distribución por ETF")
+        fig_bar = px.bar(
+            seleccion,
+            x="ETF",
+            y="Monto Asignado (USD)",
+            color="Porcentaje Asignado (%)",
+            title="Distribución de Inversión por ETF",
+            labels={"Monto Asignado (USD)": "Monto en USD"}
+        )
+        st.plotly_chart(fig_bar)
 
-                # Gráfico de los escenarios
-                fig_escenarios = px.bar(
-                    escenarios_df.melt(id_vars="ETF", var_name="Escenario", value_name="Retorno Estimado (USD)"),
-                    x="ETF", y="Retorno Estimado (USD)", color="Escenario",
-                    barmode="group", title="Comparación de Retornos Estimados por ETF y Escenario"
-                )
-                st.plotly_chart(fig_escenarios)
-
-                # Gráfica de todos los precios de cierre en una sola gráfica
-                datos_graficos.reset_index(inplace=True)
-                datos_graficos = datos_graficos.melt(id_vars=["Date"], var_name="ETF", value_name="Precio de Cierre")
-                fig = px.line(datos_graficos, x="Date", y="Precio de Cierre", color="ETF",
-                    title=f"Comparación de Precios de Cierre de ETFs Seleccionados en {periodo_seleccionado}",
-                    labels={"Date": "Fecha", "Precio de Cierre": "Precio de Cierre (USD)"})
-                fig.update_layout(template="plotly_dark", title_font=dict(size=20), title_x=0.5)
-                fig.update_yaxes(range=[0, 1000])
-                st.plotly_chart(fig)
-
-                # Gráfico de Volatilidad de los ETFs (lineal)
-                fig_volatilidad = px.bar(resultados_df, x="ETF", y="Riesgo (Desviación Estándar Anualizada) (%)",
-                    title="Volatilidad de los ETFs Seleccionados",
-                    labels={"Riesgo (Desviación Estándar Anualizada) (%)": "Volatilidad (%)"})
-                fig_volatilidad.update_layout(title_font=dict(size=20), title_x=0.5)
-                st.plotly_chart(fig_volatilidad)
-
-                # Gráfico de Rendimiento de los ETFs (lineal)
-                fig_rendimiento = px.bar(resultados_df, x="ETF", y="Rendimiento Total (%)",
-                    title="Rendimiento Total de los ETFs Seleccionados",
-                    labels={"Rendimiento Total (%)": "Rendimiento (%)"})
-                fig_rendimiento.update_layout(title_font=dict(size=20), title_x=0.5)
-                st.plotly_chart(fig_rendimiento)
-            else:
-                st.write("No se encontraron resultados para los ETFs seleccionados.")
+        # Gráfico de pastel
+        fig_pie = px.pie(
+            seleccion,
+            names="ETF",
+            values="Monto Asignado (USD)",
+            title="Proporción de Inversión por ETF",
+            hole=0.3
+        )
+        st.plotly_chart(fig_pie)
+    
